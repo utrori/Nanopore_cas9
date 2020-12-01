@@ -1,6 +1,7 @@
 from rDNA_structure_of_long_reads import easy_flag, analyze_fastq_by_header
 from matplotlib import pyplot as plt
 import numpy as np
+import sys
 import matplotlib.collections as mc
 import matplotlib.cm as cm
 
@@ -80,6 +81,7 @@ def plot_read_structure(header, split_length, offset=0, savename=None, title=Non
         ax.autoscale()
         ax.set_yticks((-10000, 0, 10000, 20000, 30000, 40000))
         ax.set_yticklabels(('unmapped', 0, 10000, 20000, 30000, 40000))
+        ax.set_ylim((-12000, 45000))
         if title:
             ax.set_title(title)
         if not savename:
@@ -93,17 +95,18 @@ def plot_read_structure(header, split_length, offset=0, savename=None, title=Non
 
 if __name__ == '__main__':
     split_length = 200
+    folder_name = sys.argv[1]
     #header = sys.argv[1]
     headers = []
     #header = '@1e384cf6-b197-4642-88a9-7f120013b16d'
     #Qplot_read_structure(header, split_length)
-    with open('reads_visualized.txt') as f:
+    with open('rDNA_containing_reads.fastq') as f:
         for n, line in enumerate(f):
-            if n % 2 == 0:
-                header = line.strip().split()[1]
+            if n % 4 == 0:
+                header = line.strip().split()[0]
                 headers.append(header)
-                savename = 'reads_visualized/figure_' + str(n // 2) + '.png'
+                filename = folder_name + '/figure_' + str(n // 4) + '.png'
                 analyze_fastq_by_header('rDNA_containing_reads.fastq', header, split_length)
-                plot_read_structure(header, split_length, savename)
+                plot_read_structure(header, split_length, savename=filename)
             else:
                 continue

@@ -248,7 +248,7 @@ def analyze_fastq_by_header(fastq, header_id, split_length):
 
 if __name__ == '__main__':
     split_length = 200
-    length_cutoff = 20000
+    length_cutoff = 5000
     # this set_of_TRs is a set of [header, TRs]
     # TRs is a list of split reads that are mapped to the Trancribed Region. The number of the last split reads is added to the end of it. (see line 59)
     set_of_TRs = analyze_all_fastq_file('rDNA_containing_reads.fastq', split_length, length_cutoff)

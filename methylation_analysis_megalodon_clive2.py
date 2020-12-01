@@ -30,11 +30,14 @@ def calc_meth_stats(scores):
     binning = 100
     current = 1
     temp_meths = []
-    for i in score:
+    for i in scores:
         if i[0] < current * binning:
-            temp_meths.append(i[1])
+            temp_meths.append(math.e ** i[1] * 10000)
         else:
-            average_scores.append(statistics.mean(temp_meths))
+            if temp_meths != []:
+                average_scores.append(statistics.mean(temp_meths))
+            else:
+                average_scores.append(0)
             temp_meths = []
             current += 1
     return average_scores
@@ -95,9 +98,9 @@ for read_id in rDNA_read_ids:
     ax = fig.add_subplot()
     x = []
     y = []
-    for score in id2scores[read_id]:
-        x.append(score[0])
-        y.append(math.e**score[1] * 10000)
+    ave_scores = calc_meth_stats(id2scores[read_id])
+    x = [i * 100 for i in range(len(ave_scores))]
+    y = ave_scores
     ax.bar(x, y, width=100, color = 'mediumblue')
     ax.add_collection(lc)
     ax.set_yticks((-10000, 0, 10000, 20000, 30000, 40000))
