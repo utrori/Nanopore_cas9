@@ -38,7 +38,7 @@ class Read(object):
         y = []
         window = 100
         cpg_met_scores = self.guppy_mbt[:,3]
-        for n, item in enumerate([cpg_met_scores[i:i+window] for i in range(0, len(cpg_met_scores), 100)]):
+        for n, item in enumerate([cpg_met_scores[i:i+window] for i in range(0, len(cpg_met_scores), window)]):
             x.append(n * window)
             y.append(len([i for i in item if i>180]) / window * 70000)
         return x, y

@@ -1,4 +1,5 @@
 import h5py
+import time
 import re
 import os
 import numpy as np
@@ -29,6 +30,15 @@ def get_ref_offset(ref):
                    stderr=subprocess.STDOUT)
     with open('temp_files/temp.sam') as f:
         return int(f.readlines()[2].split()[3]) - 1
+
+
+def calc_qual(qual_str):
+    qual_vals = []
+    for s in qual_str:
+        qual_vals.append(ord(s))
+    qual_actual_prob = [10**((-i+33)/10) for i in qual_vals]
+    smalls = [i for i in qual_vals if i < 37]
+    return np.median(qual_actual_prob)
 
 
 class Read(object):
@@ -74,8 +84,18 @@ class Read(object):
             self.sam_summary = np.array(utilities.split_mapping_and_sam_analysis(self.split_length, 'temp', 
                     self.seq, self.quality, ref))
             self.direction = self._get_direction(self.sam_summary[:,1])
-            self.long_side_len = 10000
-            self.short_side_len = 3400
+            self.long_side_len = 9500
+            self.short_side_len = 3300
+
+    def is_this_rDNA_read(self):
+        n = 0
+        for item in self.sam_summary:
+            if item[3] != '*':
+                n += 1
+        if n / len(self.sam_summary) > 0.5:
+            return 1
+        else:
+            return 0
 
     def get_methylated_bases(self, threshold):
         cpg = self.guppy_mbt[:,3]
@@ -111,9 +131,13 @@ class Read(object):
 
     def get_unmapped_section(self):
         print(self.read_id)
-        for n, item in enumerate(self.sam_summary):
-            if int(item[0]) == 4:
-                print(self.quality[n*self.split_length:(n+1)*self.split_length])
+        print(calc_qual(self.quality))
+        pos = self.sam_summary[:,2].astype(np.uint32)
+        for n, p in enumerate(pos):
+            if p == 0:
+                um_qual = self.quality[n*self.split_length:(n+1)*self.split_length]
+                if um_qual:
+                    print(calc_qual(um_qual))
 
     def __coding_coordinate(self):
         """
@@ -135,7 +159,6 @@ class Read(object):
         return (a_s, a_e, b_s, b_e)
 
     def _truncate_fast5_file(self, outname, start, end, read_id=''):
-        print(outname)
         filename = self.fast5path
         length = end - start
         with h5py.File(filename, 'r') as f:
@@ -251,14 +274,16 @@ class Read(object):
 
 
 
-def cpg_level_per_coding(reads, met_type):
-    cpg_pros = []
+def met_level_per_coding(reads, met_type, savename='temp.png'):
+    met_pros = []
     for r in reads:
         head, tail = r.get_coding_methylation_pros(met_type)
-        cpg_pros.append(head)
-        cpg_pros.append(tail)
-    plt.hist(cpg_pros, bins=60)
-    plt.savefig('temp.png', dpi=300)
+        met_pros.append(head)
+        met_pros.append(tail)
+    weights = np.ones_like(met_pros)/float(len(met_pros))
+    plt.hist(met_pros, bins=60, weights=weights)
+    plt.savefig(savename, dpi=300)
+    plt.close()
 
 
 def plot_dam_positions(reads):
@@ -374,9 +399,6 @@ def extract_rDNA_and_make_reads(rDNA_name_file, fast5_dir):
     n = 0
     for rfile in rDNA_files:
         reads.append(Read(rfile, ref))
-        n += 1
-        if n > 2000:
-            break
     return reads
 
 
@@ -387,14 +409,10 @@ if __name__ == '__main__':
     """
     ref = 'rDNA_index/rDNA_for_cas9.fa'
     offset = get_ref_offset(ref)
-    fast5s = glob.glob('1020_bc_fast5s/workspace/*.fast5')
-    n = 0
-    for f5 in fast5s:
-        r = Read(f5, ref)
-        r.get_unmapped_section()
-        if n > 300:
-            break
+    reads = extract_rDNA_and_make_reads('1026_rDNA_reads.txt', '1026_60_bc_fast5s/workspace/')
+    met_level_per_coding(reads, 'cpg', '1026.png')
     quit()
+    separate_by_cpg_align_and_squiggle(reads, 'rpa_')
     dirs1 = ['1015_head_unmet_basecalled/']
     dirs2 = ['1020_head_unmet_basecalled/']
     tombo_plot([420, 12000, 800], offset, dirs1, dirs2, 'comparison.pdf')

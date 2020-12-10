@@ -7,8 +7,8 @@ import numpy as np
 
 ref = 'rDNA_index/humRibosomal.fa'
 
-def search_rDNA_reads():
-    fast5files = glob.glob('1020_single_fast5s/*/*.fast5')
+def search_rDNA_reads(in_dir_name, rDNA_file_name):
+    fast5files = glob.glob(in_dir_name + '/workspace/*.fast5')
     string = ''
     for n, fast5 in enumerate(fast5files):
         if n % 1000 == 0:
@@ -27,8 +27,7 @@ def search_rDNA_reads():
                 scores = sam_summary[:,4].astype(np.uint16)
                 if len(np.nonzero(scores)[0]) / len(scores) > 0.8:
                     string += read_id + '\n'
-
-    with open('1020_rDNA_reads.txt', 'w') as fw:
+    with open(rDNA_file_name, 'w') as fw:
         fw.write(string)
 
 
@@ -48,4 +47,4 @@ def move_rDNA_reads():
 
 
 if __name__ == '__main__':
-    move_rDNA_reads()
+    search_rDNA_reads()
