@@ -42,6 +42,27 @@ def calc_qual(qual_str):
 
 
 class Read(object):
+    def _is_this_healthy_rDNA(self):
+        """Check if the read is completely inside rDNA or at the end.
+        """
+        if self.length < 20000:
+            return 0
+        mapping_state = []
+        for item in self.sam_summary:
+            if item[1] != '0':
+                mapping_state.append(1)
+            else:
+                mapping_state.append(0)
+        threshold = 0.8
+        if sum(mapping_state)/len(mapping_state) > threshold:
+            return 1
+        else:
+            for i in range(1, len(mapping_state) - 50):
+                if sum(mapping_state[i:])/len(mapping_state[i:]) > threshold or \
+                   sum(mapping_state[:-i])/len(mapping_state[:-i]) > threshold:
+                    healthy = 2
+        return 0
+ 
     def _get_direction(self, direction_array):
         minus = 0.1
         plus = 0.1
@@ -272,6 +293,38 @@ class Read(object):
             self._truncate_fast5_file(dirs[2] + '/' + self.read_id + '.fast5', 
                                       raw_pos[2], raw_pos[3], read_id=self.read_id[:-2]+'02')
 
+    def _cpg_methylation_average(self):
+        x = []
+        y = []
+        window = 100
+        cpg_met_scores = self.guppy_mbt[:,3]
+        for n, item in enumerate([cpg_met_scores[i:i+window] for i in range(0, len(cpg_met_scores), window)]):
+            x.append(n * window)
+            y.append(len([i for i in item if i>180]) / window * 70000)
+        return x, y
+
+    def plot_structure(self, ref, savedir):
+        utilities.split_mapping_and_sam_analysis(self.split_length, self.read_id, self.seq, self.quality, ref)
+        lc = utilities.plot_read_structure(self.read_id, self.split_length)
+        fig = plt.figure()
+        plt.subplots_adjust(left=0.2)
+        ax = fig.add_subplot()
+        x, y = self._cpg_methylation_average()
+        """
+        for n, item in enumerate(self.guppy_mbt[:,1]):
+            if item > 120:
+                ax.bar(n, item * 10000/255, width=100, color='red', zorder=3)
+        """
+        ax.bar(x, y, width=100, color = 'mediumblue', zorder=0)
+        ax.add_collection(lc)
+        ax.set_yticks((-10000, 0, 10000, 20000, 30000, 40000))
+        ax.set_yticklabels(('unmapped', 0, 10000, 20000, 30000, 40000))
+        ax.autoscale()
+        ax.set_ylim([-12000, 46000])
+        if savedir[-1] == '/':
+            savedir = savedir[:-1]
+        plt.savefig(savedir + '/' + self.read_id + '.png', dpi=300)
+        plt.close()
 
 
 def met_level_per_coding(reads, met_type, savename='temp.png'):
@@ -303,6 +356,7 @@ def plot_dam_positions(reads):
 
 def basecalling(dirname, out_name):
     subprocess.run('~/Softwares/ont-guppy_4.2.2_linux64/ont-guppy/bin/guppy_basecaller -i ' + dirname + ' -s ' + out_name + ' -c dna_r9.4.1_450bps_modbases_dam-dcm-cpg_hac_prom.cfg --device cuda:0 --fast5_out', shell=True)
+
 
 def resquiggle(bc_dirname, ref):
     subprocess.run('tombo resquiggle ' + bc_dirname + ' ' + ref + ' --processes 6 --num-most-common-errors 5', shell = True)
@@ -402,12 +456,31 @@ def extract_rDNA_and_make_reads(rDNA_name_file, fast5_dir):
     return reads
 
 
+def nanopore_reads_to_fig(in_dir, base_name, ref):
+    if os.path.exists(base_name + '_plot'):
+        shutil.rmtree(base_name + '_plot')
+    os.mkdir(base_name + '_plot')
+    subprocess.run('multi_to_single_fast5 -t 6 -i in_dir -s ' + base_name + '_single', shell=True)
+    basecalling(base_name + '_single', base_name + '_bc_fast5s')
+    shutil.rmtree(base_name + '_single')
+    fast5s = glob.glob(base_name + '_bc_fast5s/workspace/*.fast5')
+    ret_str = ''
+    for f in fast5s:
+        read = Read(fast5, ref)
+        if read._is_this_healthy_rDNA():
+            ret_str += '\n'.join(read.fastq) + '\n'
+            read.plot_structure(ref, base_name + '_plot')
+    with open(base_name + '_rDNAs.fastq', 'w') as fw:
+        fw.write(ret_str)
+
+
 if __name__ == '__main__':
     """
     CpG plotting requires a list or tuple of coordinates.
     dam plotting requires a scalar coordinate.
     """
     ref = 'rDNA_index/rDNA_for_cas9.fa'
+    ref = 'rDNA_index/humRibosomal.fa'
     offset = get_ref_offset(ref)
     reads = extract_rDNA_and_make_reads('1026_rDNA_reads.txt', '1026_60_bc_fast5s/workspace/')
     met_level_per_coding(reads, 'cpg', '1026.png')
