@@ -3,30 +3,24 @@ import shutil
 import glob
 import os
 import utilities
+import fast5class
 import numpy as np
 
 ref = 'rDNA_index/humRibosomal.fa'
 
 def search_rDNA_reads(in_dir_name, rDNA_file_name):
-    fast5files = glob.glob(in_dir_name + '/workspace/*.fast5')
+    if in_dir_name[-1] == '/':
+        in_dir_name = in_dir_name[:-1]
+    fast5files = glob.glob(in_dir_name + '/0/*.fast5')
     string = ''
     for n, fast5 in enumerate(fast5files):
         if n % 1000 == 0:
             print(n)
-        with h5py.File(fast5) as f:
-            read_name = list(f['Raw/Reads'].keys())[0]
-            read_id = f['Raw/Reads/' + read_name].attrs['read_id'].decode()
-            fastq = f['/Analyses/Basecall_1D_000/BaseCalled_template/Fastq']\
-                        [()].decode().strip().split('\n')
-            seq = fastq[1]
-            quality = fastq[3]
-            length = len(seq)
-            sam_summary = np.array(utilities.split_mapping_and_sam_analysis(300, 'temp', 
-                    seq, quality, ref))
-            if 40000 < length < 44000:
-                scores = sam_summary[:,4].astype(np.uint16)
-                if len(np.nonzero(scores)[0]) / len(scores) > 0.8:
-                    string += read_id + '\n'
+        read = fast5class.Read(fast5, ref)
+        if 4000 < read.length:
+            scores = read.sam_summary[:,4].astype(np.uint16)
+            if len(np.nonzero(scores)[0]) / len(scores) > 0.8:
+                string += read.read_id + '\n'
     with open(rDNA_file_name, 'w') as fw:
         fw.write(string)
 
@@ -47,4 +41,4 @@ def move_rDNA_reads():
 
 
 if __name__ == '__main__':
-    search_rDNA_reads()
+    search_rDNA_reads('1215_BSL2KA_bc_fast5s/', '1215_BSL_rDNAs.txt')

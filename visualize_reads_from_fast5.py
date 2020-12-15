@@ -50,9 +50,11 @@ class Read(object):
         plt.subplots_adjust(left=0.2)
         ax = fig.add_subplot()
         x, y = self._cpg_methylation_average()
+        """
         for n, item in enumerate(self.guppy_mbt[:,1]):
             if item > 120:
                 ax.bar(n, item * 10000/255, width=100, color='red', zorder=3)
+        """
         ax.bar(x, y, width=100, color = 'mediumblue', zorder=0)
         ax.add_collection(lc)
         ax.set_yticks((-10000, 0, 10000, 20000, 30000, 40000))
@@ -67,14 +69,19 @@ class Read(object):
 
 if __name__ == '__main__':
     ref = 'rDNA_index/humRibosomal.fa'
-    fast5_dir = '1020_bc_fast5s/workspace'
+    fast5_dir = '1215_BSL2KA_bc_fast5s/0'
     fast5files = glob.glob(fast5_dir + '/*.fast5')
-    print(len(set(fast5files)))
+    print(fast5files)
     reads = []
-    savedir = '1020_plot'
+    savedir = '1215_plot'
     if os.path.exists(savedir):
         shutil.rmtree(savedir)
     os.mkdir(savedir)
+    rDNA_ids = []
+    with open('1215_BSL_rDNAs.txt') as f:
+        for line in f:
+            rDNA_ids.append(line.strip())
     for fast5 in fast5files:
-        r = Read(fast5)
-        r.plot_structure(ref, savedir)
+        if fast5.split('.')[0].split('/')[-1] in rDNA_ids:
+            r = Read(fast5)
+            r.plot_structure(ref, savedir)
