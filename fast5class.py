@@ -261,14 +261,15 @@ class Read(object):
         dam_met_pos = self.get_methylated_bases(180)[1]
         ref_dam_pos = [self.get_position_in_ref(i, ref) for i in dam_met_pos]
         ref_dam_pos = [i for i in ref_dam_pos if i != None]
+        out_file = '{}/{}.fast5'
         if not ref_dam_pos:
-            self._truncate_fast5_file(control_dir + '/' + self.read_id + '.fast5', 
+            self._truncate_fast5_file(out_file.format(control_dir, self.read_id),
                                       raw_pos[0], raw_pos[1])
         elif any(((start + offset) % 42999 < i < (end + offset) % 42999 for i in ref_dam_pos)):
-            self._truncate_fast5_file(fast5_dir + '/' + self.read_id + '.fast5', 
+            self._truncate_fast5_file(out_file.format(fast5_dir, self.read_id),
                                       raw_pos[0], raw_pos[1])
         else:
-            self._truncate_fast5_file(control_dir + '/' + self.read_id + '.fast5', 
+            self._truncate_fast5_file(out_file.format(control_dir, self.read_id),
                                       raw_pos[0], raw_pos[1])
 
     def truncate_and_separation_by_cpg(self, dir_basename=''):
@@ -280,17 +281,18 @@ class Read(object):
         raw_pos = [self._get_raw_pos(i) for i in coding_coords]
         cpg_table = self.guppy_mbt[:,3]
         head_met_ratio, tail_met_ratio = self.get_coding_methylation_pros('cpg')
+        out_file = '{}/{}.fast5'
         if head_met_ratio < 0.015:
-            self._truncate_fast5_file(dirs[1] + '/' + self.read_id + '.fast5', 
+            self._truncate_fast5_file(out_file.format(dirs[1], self.read_id),
                     raw_pos[0], raw_pos[1], read_id=self.read_id[:-2]+'01')
         elif head_met_ratio > 0.06:
-            self._truncate_fast5_file(dirs[0] + '/' + self.read_id + '.fast5', 
+            self._truncate_fast5_file(out_file.format(dirs[0], self.read_id),
                                       raw_pos[0], raw_pos[1], read_id=self.read_id[:-2]+'01')
         if tail_met_ratio < 0.015:
-            self._truncate_fast5_file(dirs[3] + '/' + self.read_id + '.fast5', 
+            self._truncate_fast5_file(out_file.format(dirs[3], self.read_id),
                                       raw_pos[2], raw_pos[3], read_id=self.read_id[:-2]+'02')
         elif tail_met_ratio > 0.06:
-            self._truncate_fast5_file(dirs[2] + '/' + self.read_id + '.fast5', 
+            self._truncate_fast5_file(out_file.format(dirs[2], self.read_id),
                                       raw_pos[2], raw_pos[3], read_id=self.read_id[:-2]+'02')
 
     def _cpg_methylation_average(self):
@@ -355,11 +357,13 @@ def plot_dam_positions(reads):
 
 
 def basecalling(dirname, out_name):
-    subprocess.run('~/Softwares/ont-guppy_4.2.2_linux64/ont-guppy/bin/guppy_basecaller -i ' + dirname + ' -s ' + out_name + ' -c dna_r9.4.1_450bps_modbases_dam-dcm-cpg_hac_prom.cfg --device cuda:0 --fast5_out', shell=True)
+    string = '~/Softwares/ont-guppy_4.2.2_linux64/ont-guppy/bin/guppy_basecaller -i {} -s {} -c dna_r9.4.1_450bps_modbases_dam-dcm-cpg_hac_prom.cfg --device cuda:0 --fast5_out'.format(dirname, outname)
+    subprocess.run(string, shell=True)
 
 
 def resquiggle(bc_dirname, ref):
-    subprocess.run('tombo resquiggle ' + bc_dirname + ' ' + ref + ' --processes 6 --num-most-common-errors 5', shell = True)
+    string = 'tombo resquiggle {} {} --processes 6 --num-most-common-errors 5'.format(bc_dirname, ref)
+    subprocess.run(string, shell=True)
 
 
 def tombo_plot(coordinates, offset, bc_dirname, bc_alt_dirname, pdf_filename):
@@ -375,7 +379,8 @@ def tombo_plot(coordinates, offset, bc_dirname, bc_alt_dirname, pdf_filename):
     bc_alt_str = ''
     for dirname in bc_alt_dirname:
         bc_alt_str += dirname + ' '
-    subprocess.run('tombo plot genome_locations --plot-standard-model --fast5-basedirs ' + bc_str + '--control-fast5-basedirs ' + bc_alt_str + '--genome-locations' + coord_str + ' --pdf-filename ' + pdf_filename, shell=True)
+        string = 'tombo plot genome_locations --plot-standard-model --fast5-basedirs {} --control-fast5-basedirs {} --genome-locations {} --pdf-filename {}'.format(bc_str, bc_alt_str, coord_str, pdf_filename)
+    subprocess.run(string, shell=True)
 
 
 def separate_by_dam_and_plot_main(reads, coordinate, offset, ref):
@@ -437,7 +442,7 @@ def plot_by_cpg(reads, coordinates, offset, ref, make_fast5s, dir_basename=''):
     ctl_bc_dirs = [i for i in called_dirs if '_unmet' in i]
     coordinates = np.array(coordinates)
     tombo_plot(coordinates, bc_dirs, ctl_bc_dirs, 
-            pdf_filename='1020cpg_' + str(coordinates[0]) + '-' + str(coordinates[-1]) + '.pdf')
+            pdf_filename='1020cpg_{}-{}.pdf'.format(coordinates[0], coordinates[1])
 
 
 def extract_rDNA_and_make_reads(rDNA_name_file, fast5_dir):
