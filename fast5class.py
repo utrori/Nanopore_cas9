@@ -15,7 +15,7 @@ from cigar import Cigar
 FNULL = open(os.devnull, 'w')
 
 standard_ref_seq = ''
-with open('rDNA_index/humRibosomal.fa') as f:
+with open('/home/yutaro/nanopore/rDNA_index/humRibosomal.fa') as f:
     for l in f.readlines()[1:]:
         standard_ref_seq += l.strip()
 
@@ -45,7 +45,7 @@ class Read(object):
     def _is_this_healthy_rDNA(self):
         """Check if the read is completely inside rDNA or at the end.
         """
-        if self.length < 20000:
+        if self.length < 2000:
             return 0
         mapping_state = []
         for item in self.sam_summary:
@@ -305,6 +305,24 @@ class Read(object):
             y.append(len([i for i in item if i>180]) / window * 70000)
         return x, y
 
+    def is_this_end_to_end(self):
+        poss = [int(n) for n in self.sam_summary[:,2]]
+        start, end = 0, 0
+        for pos in poss[:3]:
+            if pos != 0:
+                start = pos
+                break
+        for pos in reversed(poss[-3:]):
+            if pos != 0:
+                end = pos
+                break
+        if not (start and end):
+            return 0
+        if 18000 < start < 21000 and 18000 < end < 21000:
+            pass
+        else:
+            print(poss)
+
     def plot_structure(self, ref, savedir):
         utilities.split_mapping_and_sam_analysis(self.split_length, self.read_id, self.seq, self.quality, ref)
         lc = utilities.plot_read_structure(self.read_id, self.split_length)
@@ -442,7 +460,7 @@ def plot_by_cpg(reads, coordinates, offset, ref, make_fast5s, dir_basename=''):
     ctl_bc_dirs = [i for i in called_dirs if '_unmet' in i]
     coordinates = np.array(coordinates)
     tombo_plot(coordinates, bc_dirs, ctl_bc_dirs, 
-            pdf_filename='1020cpg_{}-{}.pdf'.format(coordinates[0], coordinates[1])
+            pdf_filename='1020cpg_{}-{}.pdf'.format(coordinates[0], coordinates[1]))
 
 
 def extract_rDNA_and_make_reads(rDNA_name_file, fast5_dir):
@@ -484,12 +502,13 @@ if __name__ == '__main__':
     CpG plotting requires a list or tuple of coordinates.
     dam plotting requires a scalar coordinate.
     """
-    ref = 'rDNA_index/rDNA_for_cas9.fa'
-    ref = 'rDNA_index/humRibosomal.fa'
-    offset = get_ref_offset(ref)
-    reads = extract_rDNA_and_make_reads('1026_rDNA_reads.txt', '1026_60_bc_fast5s/workspace/')
-    met_level_per_coding(reads, 'cpg', '1026.png')
+    ref = '/home/yutaro/nanopore/rDNA_index/rDNA_for_cas9.fa'
+    #offset = get_ref_offset(ref)
+    for fast5 in glob.glob('/home/yutaro/nanopore/1020_rDNA_singles/*.fast5'):
+        r = Read(fast5, ref)
+        r.is_this_end_to_end()
     quit()
+    reads = extract_rDNA_and_make_reads('~/nanopore/1020_rDNA_reads.txt', '~/nanopore/1020_rDNA_singles/')
     separate_by_cpg_align_and_squiggle(reads, 'rpa_')
     dirs1 = ['1015_head_unmet_basecalled/']
     dirs2 = ['1020_head_unmet_basecalled/']
