@@ -108,7 +108,7 @@ def split_mapping_and_sam_analysis(split_length, header, read, quality, ref):
             split_info.append(int(row[3]))
             split_info.append(row[5])
             if flag != 4:
-                split_info.append(int(line.split('AS:i:')[1].split()[0]))
+                split_info.append(int(line.split('\tAS:i:')[1].split()[0]))
             else:
                 split_info.append(0)
             sam_info.append(split_info)

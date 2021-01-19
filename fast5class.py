@@ -14,8 +14,12 @@ from cigar import Cigar
 
 FNULL = open(os.devnull, 'w')
 
+with open('settings.txt') as f:
+    rDNA_ref = f.readline().strip().split()[1]
+    rDNA_ref_cas = f.readline().strip().split()[1]
+
 standard_ref_seq = ''
-with open('/home/yutaro/nanopore/rDNA_index/humRibosomal.fa') as f:
+with open(rDNA_ref) as f:
     for l in f.readlines()[1:]:
         standard_ref_seq += l.strip()
 
@@ -45,7 +49,7 @@ class Read(object):
     def _is_this_healthy_rDNA(self):
         """Check if the read is completely inside rDNA or at the end.
         """
-        if self.length < 2000:
+        if self.length < 5000:
             return 0
         mapping_state = []
         for item in self.sam_summary:
@@ -107,16 +111,6 @@ class Read(object):
             self.direction = self._get_direction(self.sam_summary[:,1])
             self.long_side_len = 9500
             self.short_side_len = 3300
-
-    def is_this_rDNA_read(self):
-        n = 0
-        for item in self.sam_summary:
-            if item[3] != '*':
-                n += 1
-        if n / len(self.sam_summary) > 0.5:
-            return 1
-        else:
-            return 0
 
     def get_methylated_bases(self, threshold):
         cpg = self.guppy_mbt[:,3]
@@ -318,10 +312,10 @@ class Read(object):
                 break
         if not (start and end):
             return 0
-        if 18000 < start < 21000 and 18000 < end < 21000:
-            pass
+        if 7000 < start < 11000 and 7000 < end < 11000:
+            return 1
         else:
-            print(poss)
+            return 0
 
     def plot_structure(self, ref, savedir):
         utilities.split_mapping_and_sam_analysis(self.split_length, self.read_id, self.seq, self.quality, ref)
@@ -375,7 +369,7 @@ def plot_dam_positions(reads):
 
 
 def basecalling(dirname, out_name):
-    string = '~/Softwares/ont-guppy_4.2.2_linux64/ont-guppy/bin/guppy_basecaller -i {} -s {} -c dna_r9.4.1_450bps_modbases_dam-dcm-cpg_hac_prom.cfg --device cuda:0 --fast5_out'.format(dirname, outname)
+    string = '~/Softwares/ont-guppy_4.2.2_linux64/ont-guppy/bin/guppy_basecaller -i {} -s {} -c dna_r9.4.1_450bps_modbases_dam-dcm-cpg_hac_prom.cfg --device cuda:0 --fast5_out --recursive'.format(dirname, out_name)
     subprocess.run(string, shell=True)
 
 
@@ -483,18 +477,21 @@ def nanopore_reads_to_fig(in_dir, base_name, ref):
     if os.path.exists(base_name + '_plot'):
         shutil.rmtree(base_name + '_plot')
     os.mkdir(base_name + '_plot')
-    subprocess.run('multi_to_single_fast5 -t 6 -i in_dir -s ' + base_name + '_single', shell=True)
+    subprocess.run('multi_to_single_fast5 -t 6 -i ' + in_dir + ' -s ' + base_name + '_single', shell=True)
     basecalling(base_name + '_single', base_name + '_bc_fast5s')
     shutil.rmtree(base_name + '_single')
-    fast5s = glob.glob(base_name + '_bc_fast5s/workspace/*.fast5')
+    fast5s = glob.glob(base_name + '_bc_fast5s/workspace/**/*.fast5')
     ret_str = ''
     for f in fast5s:
-        read = Read(fast5, ref)
+        read = Read(f, ref)
         if read._is_this_healthy_rDNA():
-            ret_str += '\n'.join(read.fastq) + '\n'
-            read.plot_structure(ref, base_name + '_plot')
+            if read.is_this_end_to_end():
+                ret_str += '\n'.join(read.seq) + '\n'
+                read.plot_structure(ref, base_name + '_plot')
+    """
     with open(base_name + '_rDNAs.fastq', 'w') as fw:
         fw.write(ret_str)
+    """
 
 
 if __name__ == '__main__':
@@ -502,10 +499,11 @@ if __name__ == '__main__':
     CpG plotting requires a list or tuple of coordinates.
     dam plotting requires a scalar coordinate.
     """
-    ref = '/home/yutaro/nanopore/rDNA_index/rDNA_for_cas9.fa'
-    #offset = get_ref_offset(ref)
+    nanopore_reads_to_fig('/var/lib/minknow/data/200910_517_cas9/517/20200910_0549_MN32877_FAL81148_18489d3e/fast5_pass/', '200910_517', 'rDNA_index/humRibosomal.fa')
+    quit()
+    offset = get_ref_offset(rDNA_ref_cas)
     for fast5 in glob.glob('/home/yutaro/nanopore/1020_rDNA_singles/*.fast5'):
-        r = Read(fast5, ref)
+        r = Read(fast5, rDNA_ref_cas)
         r.is_this_end_to_end()
     quit()
     reads = extract_rDNA_and_make_reads('~/nanopore/1020_rDNA_reads.txt', '~/nanopore/1020_rDNA_singles/')

@@ -6,7 +6,8 @@ import utilities
 import fast5class
 import numpy as np
 
-ref = 'rDNA_index/humRibosomal.fa'
+with open('settings.txt') as f:
+    ref = f.readline().split()[1].strip()
 
 def search_rDNA_reads(in_dir_name, rDNA_file_name):
     if in_dir_name[-1] == '/':
