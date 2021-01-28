@@ -7,6 +7,9 @@ from matplotlib import pyplot as plt
 import sys
 
 
+FNULL = open(os.devnull, 'w')
+
+
 def easy_flag(flag, base):
     """Return flag value based on the base.
 
@@ -57,7 +60,7 @@ def split_sequence(sequence, split_length):
     return split_seq
 
 
-def make_temp_fastq(split_length, header, read, quality,
+def make_temp_fastq(split_length, header, read, quality, identifier
                     tempfilename='temp_files/temp_fastq.fastq'):
     """Make temporary fastq by splitting the read by split length.
 
@@ -74,7 +77,7 @@ def make_temp_fastq(split_length, header, read, quality,
     split_qualities = split_sequence(quality, split_length)
     if header[0] != '@':
         header = '@' + header
-    with open('temp_files/temp_fastq.fastq', 'w') as fw:
+    with open('temp_files_' + identifier + '/temp_fastq.fastq', 'w') as fw:
         for i in range(len(split_reads)):
             split_header = [header.split()[0], ' '.join(header.split()[1:])]
             fw.write(split_header[0] + '_' + str(i+1) + ' ' + split_header[1] +
@@ -82,16 +85,21 @@ def make_temp_fastq(split_length, header, read, quality,
                      split_qualities[i] + '\n')
 
 
+def bwa_mapping(ref_path, in_fastq, out_sam, multi=False):
+    if multi == True:
+        subprocess.run('bwa mem -Ma -x ont2d -t 6 {} {} > {}'.format(ref_path, in_fastq, out_sam),
+                   shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+    else:
+        subprocess.run('bwa mem -M -x ont2d -t 6 {} {} > {}'.format(ref_path, in_fastq, out_sam),
+                   shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+
+
 def split_mapping_and_sam_analysis(split_length, header, read, quality, ref):
-    make_temp_fastq(split_length, header, read, quality)
-    FNULL = open(os.devnull, 'w')
-    subprocess.run('bwa mem -M -x ont2d -t 6 ' + ref + 
-                   ' temp_files/temp_fastq.fastq > temp_files/'
-                   'single_split_mapped.sam',
-                   shell=True, stdout=FNULL,
-                   stderr=subprocess.STDOUT)
+    identifier = str(random.random())
+    make_temp_fastq(split_length, header, read, quality, identifier)
+    bwa_mapping(ref, 'temp_files/temp_fastq_' + identifier + '.fastq', 'temp_files/single_split_mapped_' + identifier + '.sam')
     sam_info = []
-    with open('temp_files/single_split_mapped.sam') as f:
+    with open('temp_files/single_split_mapped_' + identifier + '.sam') as f:
         samdata = f.readlines()[2:]
         split_info = []
         # split_info is like [flag, direction, position, CIGAR, score]
@@ -113,6 +121,8 @@ def split_mapping_and_sam_analysis(split_length, header, read, quality, ref):
                 split_info.append(0)
             sam_info.append(split_info)
             split_info = []
+    os.remove('temp_files/temp_fastq_' + identifier + '.fastq')
+    os.remove('temp_files/single_split_mapped_' + identifier + '.sam')
     return np.array(sam_info)
 
 

@@ -49,7 +49,7 @@ class Read(object):
     def _is_this_healthy_rDNA(self):
         """Check if the read is completely inside rDNA or at the end.
         """
-        if self.length < 5000:
+        if self.length < 3000:
             return 0
         mapping_state = []
         for item in self.sam_summary:
@@ -231,6 +231,78 @@ class Read(object):
                     ref_coordinate = ref_pos + 49 + shift
                     break
             return ref_coordinate
+
+    def _find_coordinates(self, coords, ref):
+        """Find exact rDNA coordinate in the given nanopore reads.
+
+        Args:
+            read (str): read sequence
+            coord (int): target coordinate of rDNA
+
+        Returns:
+            result: list of [mapped coordinate, direction of mapping]
+        """
+        result = []
+        temp_fastq_length = 500
+        reference_seq = ''
+        with open(ref) as f:
+            lines = f.readlines()[1:]
+        for line in lines:
+            reference_seq += line.strip()
+        with open('temp_index/temp_index.fasta', 'w') as fw:
+            fw.write('>{}\n{}'.format(self.read_id, self.seq))
+        subprocess.run('bwa index temp_index/temp_index.fasta', shell=True, stdout=FNULL, stderr=subprocess.STDOUT)
+        for coord in coords:
+            with open('temp_index/coordinate_rDNA.fastq', 'w') as fw:
+                fw.write('>temp\n{}\n+\n{}\n'.format(reference_seq[coord-1:coord+temp_fastq_length-1], 'J' * temp_fastq_length))
+            # with -a option, multiple hits are more clearly shown
+            utilities.bwa_mapping('temp_index/temp_index.fasta', 'temp_index/coordinate_rDNA.fastq', 'temp_index/temp_sam4coord.sam', multi=True)
+            with open('temp_index/temp_sam4coord.sam') as samf:
+                map_result = samf.readlines()[2:]
+            for mapping in map_result:
+                row = mapping.strip().split()
+                AS = int(mapping.strip().split('AS:i:')[1].split()[0])
+                flag = int(row[1])
+                if utilities.easy_flag(flag, 16) != 1:
+                    direction = '+'
+                else:
+                    direction = '-'
+                mapped_coord = int(row[3])
+                if AS > 0.3 * temp_fastq_length:
+                    result.append([coord, mapped_coord, direction])
+        return result
+
+    def large_scale_by_mapping(self, ref):
+        mapped_results = self._find_coordinates([2000, 3500, 5000, 6500, 8000, 9500, 11000, 18000, 31500, 33500, 35000, 38000, 41000], ref)
+        mapped_sorted = sorted(mapped_results, key=lambda res: res[1])
+        for n in range(len(mapped_sorted) - 1):
+            if mapped_sorted[n][2] == '+':
+                read_diff = mapped_sorted[n+1][1] - mapped_sorted[n][1]
+                ref_diff = (mapped_sorted[n+1][0] - mapped_sorted[n][0]) % 42999
+                diff_from_ref = abs(ref_diff - read_diff)
+                if mapped_sorted[n+1][0] > 25000 > mapped_sorted[n][0]:
+                    if diff_from_ref > 10000:
+                        return 1
+                elif mapped_sorted[n+1][0] > 14000 > mapped_sorted[n][0]:
+                    if diff_from_ref > 6000:
+                        return 1
+                else:
+                    if diff_from_ref > 3000:
+                        return 1
+            else:
+                read_diff = mapped_sorted[n+1][1] - mapped_sorted[n][1]
+                ref_diff = (mapped_sorted[n][0] - mapped_sorted[n+1][0]) % 42999
+                diff_from_ref = abs(ref_diff - read_diff)
+                if mapped_sorted[n][0] > 25000 > mapped_sorted[n+1][0]:
+                    if diff_from_ref > 10000:
+                        return 1
+                elif mapped_sorted[n][0] > 14000 > mapped_sorted[n+1][0]:
+                    if diff_from_ref > 6000:
+                        return 1
+                else:
+                    if diff_from_ref > 3000:
+                        return 1
+        return 0
 
     def truncate_and_separate_by_dam(self, start, end, fast5_dir, control_dir, offset):
         #separate reads by the dam status within (start, end) reference coordinate
@@ -493,13 +565,29 @@ def nanopore_reads_to_fig(in_dir, base_name, ref):
         fw.write(ret_str)
     """
 
+def find_abnormal_to_fig(in_dir, ref):
+    fast5s = glob.glob(in_dir + 'workspace/**/*.fast5')
+    basename = in_dir.split('/')[-2]
+    out_dir = 'abnormal_reads2/' + basename
+    if os.path.exists(out_dir):
+        shutil.rmtree(out_dir)
+    os.mkdir(out_dir)
+    print(out_dir)
+    for f in fast5s:
+        read = Read(f, ref)
+        if read._is_this_healthy_rDNA():
+            if read.is_this_end_to_end():
+                if read.large_scale_by_mapping(ref):
+                    read.plot_structure(ref, out_dir)
+
 
 if __name__ == '__main__':
     """
     CpG plotting requires a list or tuple of coordinates.
     dam plotting requires a scalar coordinate.
     """
-    nanopore_reads_to_fig('/var/lib/minknow/data/200910_517_cas9/517/20200910_0549_MN32877_FAL81148_18489d3e/fast5_pass/', '200910_517', 'rDNA_index/humRibosomal.fa')
+    for bc_dir in glob.glob('/mnt/data2/cas9/**/'):
+        find_abnormal_to_fig(bc_dir, 'rDNA_index/humRibosomal.fa')
     quit()
     offset = get_ref_offset(rDNA_ref_cas)
     for fast5 in glob.glob('/home/yutaro/nanopore/1020_rDNA_singles/*.fast5'):
