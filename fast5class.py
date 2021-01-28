@@ -99,6 +99,8 @@ class Read(object):
             mod_loc = self._find_basecall_with_mod(f)
             fastq = f['/Analyses/Basecall_1D_00' + mod_loc + '/BaseCalled_template/Fastq']\
                     [()].decode().strip().split('\n')
+            self.fastq_str = f['/Analyses/Basecall_1D_00' + mod_loc + '/BaseCalled_template/Fastq']\
+                    [()].decode()
             self.seq = fastq[1]
             self.quality = fastq[3]
             #fastq length! not raw signal length
@@ -581,13 +583,25 @@ def find_abnormal_to_fig(in_dir, ref):
                     read.plot_structure(ref, out_dir)
 
 
+def extract_rDNA_fq_from_f5():
+    for bc_dir in glob.glob('/mnt/data2/cas9/**/'):
+        basename = bc_dir.split('/')[-2].split('_bc')[0]
+        fast5s = glob.glob(bc_dir + 'workspace/**/*.fast5')
+        ret_str = ''
+        for f in fast5s:
+            read = Read(f, 'rDNA_index/humRibosomal.fa')
+            if read.is_this_end_to_end():
+                ret_str += read.fastq_str
+        with open('fastqs/' + basename + '_rDNAs.fastq', 'w') as fw:
+            fw.write(ret_str)
+
+
 if __name__ == '__main__':
     """
     CpG plotting requires a list or tuple of coordinates.
     dam plotting requires a scalar coordinate.
     """
-    for bc_dir in glob.glob('/mnt/data2/cas9/**/'):
-        find_abnormal_to_fig(bc_dir, 'rDNA_index/humRibosomal.fa')
+    extract_rDNA_fq_from_f5()
     quit()
     offset = get_ref_offset(rDNA_ref_cas)
     for fast5 in glob.glob('/home/yutaro/nanopore/1020_rDNA_singles/*.fast5'):

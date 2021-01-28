@@ -1,4 +1,5 @@
 import subprocess
+import random
 import os
 import numpy as np
 import matplotlib.collections as mc
@@ -60,7 +61,7 @@ def split_sequence(sequence, split_length):
     return split_seq
 
 
-def make_temp_fastq(split_length, header, read, quality, identifier
+def make_temp_fastq(split_length, header, read, quality, identifier,
                     tempfilename='temp_files/temp_fastq.fastq'):
     """Make temporary fastq by splitting the read by split length.
 
@@ -77,7 +78,7 @@ def make_temp_fastq(split_length, header, read, quality, identifier
     split_qualities = split_sequence(quality, split_length)
     if header[0] != '@':
         header = '@' + header
-    with open('temp_files_' + identifier + '/temp_fastq.fastq', 'w') as fw:
+    with open('temp_files/temp_fastq_' + identifier + '.fastq', 'w') as fw:
         for i in range(len(split_reads)):
             split_header = [header.split()[0], ' '.join(header.split()[1:])]
             fw.write(split_header[0] + '_' + str(i+1) + ' ' + split_header[1] +
